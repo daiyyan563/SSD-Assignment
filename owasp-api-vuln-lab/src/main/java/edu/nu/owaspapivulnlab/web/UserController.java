@@ -20,10 +20,21 @@ public class UserController {
     }
 
     // VULNERABILITY(API1: BOLA/IDOR) - no ownership check, any authenticated OR anonymous GET (due to SecurityConfig) can fetch any user
+    // Description: Added ownership check — ensures users can only access their own profiles.
+    // Short summary: Prevents unauthorized access to other users’ data.
     @GetMapping("/{id}")
-    public AppUser get(@PathVariable Long id) {
-        return users.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+    public ResponseEntity<?> get(@PathVariable Long id, Authentication auth) 
+    {
+        AppUser current = users.findByUsername(auth.getName()).orElseThrow(() -> new RuntimeException("User not found"));
+        AppUser target = users.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+    
+        // ✅ Check ownership or admin privileges before returning data
+        if (!current.getId().equals(target.getId()) && !current.isAdmin()) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+        return ResponseEntity.ok(target);
     }
+
 
     // VULNERABILITY(API6: Mass Assignment) - binds role/isAdmin from client
     @PostMapping
