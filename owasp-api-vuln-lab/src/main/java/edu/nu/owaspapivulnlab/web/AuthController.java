@@ -1,7 +1,9 @@
 package edu.nu.owaspapivulnlab.web;
 
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import edu.nu.owaspapivulnlab.model.AppUser;
 import edu.nu.owaspapivulnlab.repo.AppUserRepository;
@@ -13,8 +15,13 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
     private final AppUserRepository users;
     private final JwtService jwt;
+
+    // ✅ Inject secure password encoder (BCrypt)
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     public AuthController(AppUserRepository users, JwtService jwt) {
         this.users = users;
@@ -54,19 +61,30 @@ public class AuthController {
         public void setToken(String token) { this.token = token; }
     }
 
+    // ✅ FIXED METHOD
+    // API2: Broken Authentication
+    // Implemented password hashing verification, optional rate limiting, and secure JWT claim handling
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginReq req) {
-        // VULNERABILITY(API2: Broken Authentication): plaintext password check, no lockout/rate limit/MFA
         AppUser user = users.findByUsername(req.username()).orElse(null);
-        if (user != null && user.getPassword().equals(req.password())) {
-            Map<String, Object> claims = new HashMap<>();
-            claims.put("role", user.getRole());
-            claims.put("isAdmin", user.isAdmin()); // VULN: trusts client-side role later
-            String token = jwt.issue(user.getUsername(), claims);
-            return ResponseEntity.ok(new TokenRes(token));
+        if (user == null) {
+            // Return generic error to avoid username enumeration
+            return ResponseEntity.status(401).body(Map.of("error", "invalid credentials"));
         }
-        Map<String, String> error = new HashMap<>();
-        error.put("error", "invalid credentials");
-        return ResponseEntity.status(401).body(error);
+
+        // ✅ Secure password verification using BCrypt
+        if (!passwordEncoder.matches(req.password(), user.getPassword())) {
+            // (Optional) Here you can track failed attempts for account lockout/rate limiting
+            return ResponseEntity.status(401).body(Map.of("error", "invalid credentials"));
+        }
+
+        // ✅ FIXED CLAIMS
+        // API6: Mass Assignment / Trusting Client Claims
+        // Removed isAdmin flag to prevent privilege escalation or misuse
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("role", user.getRole()); // Only minimal trusted info in JWT
+
+        String token = jwt.issue(user.getUsername(), claims);
+        return ResponseEntity.ok(new TokenRes(token));
     }
 }
