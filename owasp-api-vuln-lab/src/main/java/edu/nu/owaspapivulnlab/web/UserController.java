@@ -97,11 +97,20 @@ public class UserController {
 
 
     // VULNERABILITY(API5: Broken Function Level Authorization) - allows regular users to delete anyone
+    // Description: Only admin or the owner can delete a user.
+    // Short summary: Prevents ordinary users from deleting other users’ accounts.
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> delete(@PathVariable Long id) {
+    public ResponseEntity<?> delete(@PathVariable Long id, Authentication auth) {
+        AppUser current = users.findByUsername(auth.getName()).orElseThrow();
+        AppUser target = users.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
+
+        // ✅ Only allow self-deletion or admin deletion
+        if (!current.isAdmin() && !current.getId().equals(target.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Not authorized to delete this user"));
+        }
+
         users.deleteById(id);
-        Map<String, String> response = new HashMap<>();
-        response.put("status", "deleted");
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(Map.of("status", "deleted"));
     }
+
 }
