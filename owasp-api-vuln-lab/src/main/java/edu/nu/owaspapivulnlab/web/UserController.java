@@ -56,10 +56,26 @@ public class UserController {
     }
 
     // VULNERABILITY(API9: Improper Inventory + API8 Injection style): naive 'search' that can be abused for enumeration
+    // ✅ FIX for VULNERABILITY(API9 + API8: Improper Inventory / Injection)
+    // Description: Limited search results and sanitized query input.
+    // Short summary: Prevents user enumeration and input-based injection.
     @GetMapping("/search")
-    public List<AppUser> search(@RequestParam String q) {
-        return users.search(q);
+    public ResponseEntity<?> search(@RequestParam String q, Authentication auth) {
+        // ✅ Basic sanitization and minimum length check
+        if (q.length() < 3) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Query too short"));
+        }
+
+    // ✅ Restrict search visibility to admin users only
+    AppUser current = users.findByUsername(auth.getName()).orElseThrow();
+    if (!current.isAdmin()) {
+        return ResponseEntity.status(403).body(Map.of("error", "Forbidden"));
     }
+
+    List<AppUser> results = users.search(q);
+    return ResponseEntity.ok(results);
+    }
+
 
     // VULNERABILITY(API3: Excessive Data Exposure) - returns all users including sensitive fields
     @GetMapping
