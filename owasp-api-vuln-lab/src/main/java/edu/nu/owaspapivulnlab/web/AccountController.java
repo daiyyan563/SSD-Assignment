@@ -24,11 +24,21 @@ public class AccountController {
         this.users = users;
     }
 
-    // VULNERABILITY(API1: BOLA) - no check whether account belongs to caller
+    /**
+     * ✅ FIX for API1: Broken Object Level Authorization (BOLA)
+     * Description: Verify that the account belongs to the authenticated user before returning data.
+     */
     @GetMapping("/{id}/balance")
-    public Double balance(@PathVariable Long id) {
+    public ResponseEntity<?> balance(@PathVariable Long id, Authentication auth) {
+        AppUser me = users.findByUsername(auth.getName()).orElseThrow(() -> new RuntimeException("User not found"));
         Account a = accounts.findById(id).orElseThrow(() -> new RuntimeException("Account not found"));
-        return a.getBalance();
+
+        // 🔒 Ensure the authenticated user owns the requested account
+        if (!a.getOwnerUserId().equals(me.getId())) {
+            return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
+        }
+
+        return ResponseEntity.ok(Map.of("balance", a.getBalance()));
     }
 
     // VULNERABILITY(API4: Unrestricted Resource Consumption) - no rate limiting on transfer
