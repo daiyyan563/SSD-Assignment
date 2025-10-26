@@ -56,7 +56,6 @@ public class UserController {
     }
 
     // VULNERABILITY(API9: Improper Inventory + API8 Injection style): naive 'search' that can be abused for enumeration
-    // ✅ FIX for VULNERABILITY(API9 + API8: Improper Inventory / Injection)
     // Description: Limited search results and sanitized query input.
     // Short summary: Prevents user enumeration and input-based injection.
     @GetMapping("/search")
@@ -78,10 +77,24 @@ public class UserController {
 
 
     // VULNERABILITY(API3: Excessive Data Exposure) - returns all users including sensitive fields
+    // Description: Return only non-sensitive fields using a DTO instead of full user objects.
+    // Short summary: Protects sensitive fields like passwords and tokens.
     @GetMapping
-    public List<AppUser> list() {
-        return users.findAll();
+    public ResponseEntity<?> list(Authentication auth) {
+    AppUser current = users.findByUsername(auth.getName()).orElseThrow();
+
+    // ✅ Limit access to admins and return minimal safe info
+    if (!current.isAdmin()) {
+        return ResponseEntity.status(403).body(Map.of("error", "Access denied"));
     }
+
+    List<Map<String, Object>> safeUsers = users.findAll().stream()
+            .map(u -> Map.of("id", u.getId(), "username", u.getUsername(), "email", u.getEmail()))
+            .toList();
+
+    return ResponseEntity.ok(safeUsers);
+}
+
 
     // VULNERABILITY(API5: Broken Function Level Authorization) - allows regular users to delete anyone
     @DeleteMapping("/{id}")
