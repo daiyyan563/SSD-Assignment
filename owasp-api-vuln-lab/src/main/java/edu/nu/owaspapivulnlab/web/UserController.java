@@ -37,9 +37,22 @@ public class UserController {
 
 
     // VULNERABILITY(API6: Mass Assignment) - binds role/isAdmin from client
+    // Description: Removed direct binding of sensitive fields like `role` and `isAdmin`.
+    // Short summary: Prevents privilege escalation by ignoring client-sent admin flags.
     @PostMapping
-    public AppUser create(@Valid @RequestBody AppUser body) {
-        return users.save(body);
+    public ResponseEntity<?> create(@Valid @RequestBody AppUser body, Authentication auth) {
+        // ✅ Force defaults and ignore any injected fields
+        body.setRole("USER");
+        body.setAdmin(false);
+
+        // Optionally restrict account creation to admins only
+        AppUser current = users.findByUsername(auth.getName()).orElseThrow();
+        if (!current.isAdmin()) {
+            return ResponseEntity.status(403).body(Map.of("error", "Only admins can create new users"));
+        }
+
+        AppUser saved = users.save(body);
+        return ResponseEntity.status(201).body(saved);
     }
 
     // VULNERABILITY(API9: Improper Inventory + API8 Injection style): naive 'search' that can be abused for enumeration
