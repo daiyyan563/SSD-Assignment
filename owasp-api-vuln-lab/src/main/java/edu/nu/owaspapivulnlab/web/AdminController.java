@@ -14,13 +14,19 @@ import java.util.Map;
 public class AdminController {
 
     // VULNERABILITY(API7: Security Misconfiguration) - may be exposed via incorrect matcher order
+    // Restricted /metrics endpoint to ADMIN role and sanitized sensitive output
     @GetMapping("/metrics")
-    public Map<String, Object> metrics() {
+    @PreAuthorize("hasRole('ADMIN')") // ✅ Restrict access to admins only
+    public Map<String, Object> metrics() 
+    {
         RuntimeMXBean rt = ManagementFactory.getRuntimeMXBean();
         Map<String, Object> metricsMap = new HashMap<>();
+
+        // ✅ Limit information exposed (omit java version & thread details)
         metricsMap.put("uptimeMs", rt.getUptime());
-        metricsMap.put("javaVersion", System.getProperty("java.version"));
-        metricsMap.put("threads", ManagementFactory.getThreadMXBean().getThreadCount());
+        metricsMap.put("appStatus", "running");
+
         return metricsMap;
     }
+
 }
